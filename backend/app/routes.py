@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from app.models import (
     SearchRequest, SearchResponse, BookingRequest, 
-    BookingResponse, HistoryItem
+    BookingResponse, HistoryItem, AutonomousBookingRequest,
+    AutonomousBookingResponse
 )
 from app.services.agent import TravelAgent
 from typing import List
@@ -33,6 +34,44 @@ async def search_flights(request: SearchRequest):
             search_history.append(history_item)
         
         return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/search-and-book", response_model=AutonomousBookingResponse)
+async def search_and_book_autonomous(request: AutonomousBookingRequest):
+    """
+    Autonomous booking: Search for flights and automatically book the best option
+    """
+    try:
+        search_params = request.search_params.dict()
+        passenger_details = request.passenger_details
+        
+        result = await agent.process_search_and_book(search_params, passenger_details)
+        
+        if result['status'] == 'error':
+            raise HTTPException(status_code=400, detail=result['message'])
+        
+        # Add to history
+        history_item = HistoryItem(
+            search_id=result['search_id'],
+            search_params=search_params,
+            timestamp=result['thoughts'][-1].timestamp if result['thoughts'] else "",
+            result_count=len(result['all_flights'])
+        )
+        search_history.append(history_item)
+        
+        return AutonomousBookingResponse(
+            search_id=result['search_id'],
+            status=result['status'],
+            thoughts=result['thoughts'],
+            all_flights=result['all_flights'],
+            selected_flight=result['selected_flight'],
+            selection_reason=result['selection_reason'],
+            booking_result=result['booking_result'],
+            message=result['message']
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

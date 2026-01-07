@@ -54,6 +54,20 @@ class BookingResponse(BaseModel):
     confirmation_code: Optional[str]
     message: str
 
+class AutonomousBookingRequest(BaseModel):
+    search_params: SearchRequest
+    passenger_details: Dict[str, Any] = Field(..., description="Passenger information for booking")
+
+class AutonomousBookingResponse(BaseModel):
+    search_id: str
+    status: str
+    thoughts: List[AgentThought]
+    all_flights: List[Dict[str, Any]]
+    selected_flight: Dict[str, Any]
+    selection_reason: str
+    booking_result: Dict[str, Any]
+    message: str
+
 class HistoryItem(BaseModel):
     search_id: str
     search_params: Dict[str, Any]

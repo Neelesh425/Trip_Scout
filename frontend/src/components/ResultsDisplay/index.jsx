@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './index.scss';
 
-const ResultsDisplay = ({ searchResponse, onBook }) => {
+const ResultsDisplay = ({ searchResponse, autonomousBookingResponse, onBook }) => {
   const [selectedFlight, setSelectedFlight] = useState(null);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [passengerDetails, setPassengerDetails] = useState({
@@ -11,6 +11,108 @@ const ResultsDisplay = ({ searchResponse, onBook }) => {
     phone: ''
   });
 
+  // Handle autonomous booking results
+  if (autonomousBookingResponse) {
+    const { selected_flight, booking_result, selection_reason, all_flights } = autonomousBookingResponse;
+    
+    return (
+      <div className="results-display autonomous-results">
+        <div className="results-header success">
+          <div className="success-icon">✅</div>
+          <h3>Autonomous Booking Complete!</h3>
+          <p className="summary">{autonomousBookingResponse.message}</p>
+        </div>
+
+        <div className="booking-confirmation">
+          <h4>Booking Confirmation</h4>
+          <div className="confirmation-details">
+            <div className="detail-row">
+              <span className="label">Booking ID:</span>
+              <span className="value">{booking_result.booking_id}</span>
+            </div>
+            <div className="detail-row">
+              <span className="label">Confirmation Code:</span>
+              <span className="value confirmation-code">{booking_result.confirmation_code}</span>
+            </div>
+            <div className="detail-row">
+              <span className="label">Status:</span>
+              <span className="value status">{booking_result.status}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="selected-flight-card">
+          <h4>Your Booked Flight</h4>
+          <div className="ai-decision">
+            <span className="robot-icon">🤖</span>
+            <p><strong>AI Decision:</strong> {selection_reason}</p>
+          </div>
+          
+          <div className="flight-card highlighted">
+            <div className="flight-info">
+              <div className="airline-section">
+                <h4>{selected_flight.airline}</h4>
+                <span className="flight-number">{selected_flight.flight_number}</span>
+              </div>
+
+              <div className="route-section">
+                <div className="time-location">
+                  <div className="time">{selected_flight.departure_time.split('T')[1].substring(0, 5)}</div>
+                  <div className="location">{selected_flight.origin}</div>
+                </div>
+
+                <div className="flight-path">
+                  <div className="duration">{selected_flight.duration}</div>
+                  <div className="path-line">
+                    <div className="line"></div>
+                    <div className="plane-icon">✈️</div>
+                  </div>
+                  <div className="stops">
+                    {selected_flight.stops === 0 ? 'Non-stop' : `${selected_flight.stops} Stop${selected_flight.stops > 1 ? 's' : ''}`}
+                  </div>
+                </div>
+
+                <div className="time-location">
+                  <div className="time">{selected_flight.arrival_time.split('T')[1].substring(0, 5)}</div>
+                  <div className="location">{selected_flight.destination}</div>
+                </div>
+              </div>
+
+              <div className="details-section">
+                <span className="cabin-class">{selected_flight.cabin_class}</span>
+              </div>
+            </div>
+
+            <div className="price-section">
+              <div className="price">
+                <span className="currency">{selected_flight.currency}</span>
+                <span className="amount">{selected_flight.price.toLocaleString()}</span>
+              </div>
+              <div className="booked-badge">✓ Booked</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="other-options">
+          <h4>Other Available Flights</h4>
+          <p className="info-text">These were the other options AI considered:</p>
+          <div className="flights-list compact">
+            {all_flights.filter(f => f.flight_id !== selected_flight.flight_id).slice(0, 5).map((flight, index) => (
+              <div key={flight.flight_id} className="flight-card small">
+                <div className="flight-info">
+                  <span className="airline">{flight.airline} {flight.flight_number}</span>
+                  <span className="route">{flight.origin} → {flight.destination}</span>
+                  <span className="price">{flight.currency} {flight.price.toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle regular search results
   if (!searchResponse || searchResponse.flights.length === 0) {
     return null;
   }

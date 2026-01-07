@@ -1,6 +1,8 @@
 import ollama
 from typing import Dict, Any, List
 from app.config import get_settings
+import json
+import re
 
 settings = get_settings()
 
@@ -57,6 +59,68 @@ class LLMClient:
         return {
             "analysis": response,
             "search_strategy": "price_focused" if search_params.get('cabin_class') == 'economy' else "comfort_focused"
+        }
+    
+    async def select_best_flight(self, flights: List[Dict[str, Any]], search_params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Use AI to select the best flight from available options
+        """
+        # Prepare flight summary for LLM
+        flight_summaries = []
+        for i, flight in enumerate(flights[:10]):  # Limit to top 10 to avoid token limits
+            flight_summaries.append(
+                f"Flight {i+1}: {flight['airline']} {flight['flight_number']} - "
+                f"Price: {flight['currency']} {flight['price']}, "
+                f"Duration: {flight['duration']}, "
+                f"Stops: {flight['stops']}, "
+                f"Departure: {flight['departure_time'].split('T')[1][:5]}, "
+                f"ID: {flight['flight_id']}"
+            )
+        
+        cabin_class = search_params.get('cabin_class', 'economy')
+        
+        prompt = f"""
+        You are a travel booking AI agent. Select the BEST flight from these options for the user.
+        
+        User preferences:
+        - Cabin Class: {cabin_class}
+        - Passengers: {search_params.get('passengers', 1)}
+        
+        Available flights:
+        {chr(10).join(flight_summaries)}
+        
+        Selection criteria priority:
+        1. For economy class: Best value (balance of price and convenience)
+        2. For business/first: Comfort and convenience over price
+        3. Prefer non-stop or fewer stops
+        4. Prefer reasonable departure times
+        
+        Respond ONLY in this exact format:
+        FLIGHT_ID: [the flight_id]
+        REASON: [one sentence explaining why this is the best choice]
+        
+        Example:
+        FLIGHT_ID: FL1234
+        REASON: Best value with non-stop service at a competitive price.
+        """
+        
+        response = await self.generate_response(prompt)
+        
+        # Parse the response
+        flight_id_match = re.search(r'FLIGHT_ID:\s*(\S+)', response)
+        reason_match = re.search(r'REASON:\s*(.+?)(?:\n|$)', response, re.DOTALL)
+        
+        if flight_id_match:
+            flight_id = flight_id_match.group(1).strip()
+            reason = reason_match.group(1).strip() if reason_match else "Selected as the best overall option"
+        else:
+            # Fallback: select the first flight (best price since they're sorted)
+            flight_id = flights[0]['flight_id']
+            reason = "Selected based on best price and value"
+        
+        return {
+            "flight_id": flight_id,
+            "reason": reason
         }
     
     async def make_decision(self, situation: str, options: List[str]) -> str:

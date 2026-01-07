@@ -3,7 +3,7 @@ from datetime import datetime
 import asyncio
 from app.services.llm_client import LLMClient
 from app.services.flight_api import FlightAPI
-from app.models import AgentThought, SearchResponse, Flight
+from app.models import AgentThought, SearchResponse, Flight, BookingResponse
 import uuid
 
 class TravelAgent:
@@ -102,6 +102,118 @@ class TravelAgent:
                 message=f"An error occurred while processing your request: {str(e)}",
                 search_params=search_params
             )
+    
+    async def process_search_and_book(self, search_params: Dict[str, Any], passenger_details: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Autonomous agent: Search for flights and automatically book the best option
+        """
+        self.thoughts = []  # Reset thoughts for new search
+        search_id = str(uuid.uuid4())
+        
+        try:
+            # Step 1: Analyze the search intent
+            self._add_thought(
+                "Analyzing search parameters and user intent for autonomous booking",
+                "analyze_intent"
+            )
+            await asyncio.sleep(0.5)
+            
+            intent_analysis = await self.llm.analyze_search_intent(search_params)
+            
+            # Step 2: Validate search parameters
+            self._add_thought(
+                f"Validating search parameters. Strategy: {intent_analysis.get('search_strategy')}",
+                "validate_params"
+            )
+            await asyncio.sleep(0.3)
+            
+            validation_result = self._validate_params(search_params)
+            if not validation_result['valid']:
+                return {
+                    "status": "error",
+                    "message": validation_result['message'],
+                    "thoughts": self.thoughts
+                }
+            
+            # Step 3: Search for flights
+            self._add_thought(
+                f"Searching for flights from {search_params['origin']} to {search_params['destination']}",
+                "search_flights"
+            )
+            await asyncio.sleep(0.5)
+            
+            flights = await self.flight_api.search_flights(search_params)
+            
+            if not flights:
+                self._add_thought(
+                    "No flights found matching criteria",
+                    "error"
+                )
+                return {
+                    "status": "error",
+                    "message": "No flights found for your search criteria",
+                    "thoughts": self.thoughts
+                }
+            
+            # Step 4: Let AI evaluate and select the best flight
+            self._add_thought(
+                f"Found {len(flights)} flights. Using AI to evaluate and select the best option",
+                "evaluate_flights"
+            )
+            await asyncio.sleep(0.6)
+            
+            best_flight = await self.llm.select_best_flight([f.dict() for f in flights], search_params)
+            
+            # Find the selected flight object
+            selected_flight = next((f for f in flights if f.flight_id == best_flight['flight_id']), flights[0])
+            
+            self._add_thought(
+                f"AI selected: {selected_flight.airline} {selected_flight.flight_number} - {selected_flight.currency} {selected_flight.price}. Reason: {best_flight['reason']}",
+                "flight_selected"
+            )
+            await asyncio.sleep(0.5)
+            
+            # Step 5: Proceed with booking
+            self._add_thought(
+                "Validating passenger details for booking",
+                "validate_booking"
+            )
+            await asyncio.sleep(0.3)
+            
+            self._add_thought(
+                f"Processing autonomous booking for flight {selected_flight.flight_id}",
+                "process_booking"
+            )
+            await asyncio.sleep(0.5)
+            
+            booking_result = await self.flight_api.book_flight(selected_flight.flight_id, passenger_details)
+            
+            self._add_thought(
+                f"Booking completed! Confirmation code: {booking_result.get('confirmation_code')}",
+                "complete"
+            )
+            
+            return {
+                "status": "success",
+                "search_id": search_id,
+                "thoughts": self.thoughts,
+                "selected_flight": selected_flight.dict(),
+                "booking_result": booking_result,
+                "all_flights": [f.dict() for f in flights],
+                "selection_reason": best_flight['reason'],
+                "message": f"Successfully booked {selected_flight.airline} {selected_flight.flight_number} for {selected_flight.currency} {selected_flight.price}"
+            }
+            
+        except Exception as e:
+            self._add_thought(
+                f"Error occurred during autonomous booking: {str(e)}",
+                "error"
+            )
+            return {
+                "status": "error",
+                "message": f"An error occurred: {str(e)}",
+                "thoughts": self.thoughts
+            }
     
     def _validate_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Validate search parameters"""

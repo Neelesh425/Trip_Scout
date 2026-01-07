@@ -19,6 +19,19 @@ export const searchFlights = async (searchParams) => {
   }
 };
 
+export const searchAndBookAutonomous = async (searchParams, passengerDetails) => {
+  try {
+    const response = await api.post('/api/search-and-book', {
+      search_params: searchParams,
+      passenger_details: passengerDetails
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error in autonomous booking:', error);
+    throw error;
+  }
+};
+
 export const bookFlight = async (bookingData) => {
   try {
     const response = await api.post('/api/book', bookingData);

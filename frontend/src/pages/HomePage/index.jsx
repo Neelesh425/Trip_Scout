@@ -143,7 +143,7 @@ const HomePage = () => {
   return (
     <div className="home-page">
       <div className="page-hero">
-        <h1>AI-Powered Travel Planning</h1>
+        <h1>Travel Planner by Shunya</h1>
         <p>Chat with our AI assistant to create your perfect travel plan</p>
       </div>
 
